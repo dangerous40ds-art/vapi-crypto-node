@@ -73,7 +73,7 @@ app.get('/', async (req, res) => {
              maxTimeoutSeconds: 30,
              eip712: {
                domain: {
-                 name: "vAPI Live Crypto Price Node",
+                 name: "USDC"
                  version: "1.0.0",
                  chainId: 8453,
                  verifyingContract: "0x0000000000000000000000000000000000000000"
