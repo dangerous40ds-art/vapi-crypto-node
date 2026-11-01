@@ -1,0 +1,143 @@
+import express from 'express';
+import { Coinbase } from '@coinbase/cdp-core';
+import axios from 'axios';
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+const MY_BASE_WALLET = "0x452993071FdE3743767f98f339E90D9A313BBf3B"; 
+const API_AMOUNT_PER_CALL = "0.001"; 
+const BASE_NETWORK_ID = "eip155:8453"; 
+const ROUTER_API_KEY = "sk-nuTbTn3SZQqxgyWVohi8yw";
+
+app.get('/openapi.json', (req, res) => {
+  res.json({
+    openapi: "3.0.0",
+    info: {
+      title: "Live Crypto Price Node",
+      version: "1.0.0",
+      description: "Returns real-time token pricing via vAPI compute routing."
+    },
+    paths: {
+      "/": {
+        get: {
+          summary: "Get live token price",
+          "x-payment-info": {
+            x402: {
+              scheme: "exact",
+              amount: API_AMOUNT_PER_CALL,
+              asset: "USDC",
+              network: BASE_NETWORK_ID,
+              payTo: MY_BASE_WALLET,
+              maxTimeoutSeconds: 30
+            }
+          },
+          parameters: [
+            {
+              name: "symbol",
+              in: "query",
+              required: false,
+              schema: { type: "string", default: "BTC" },
+              description: "The crypto ticker symbol (e.g., BTC, ETH)"
+            }
+          ],
+          responses: {
+            "200": { description: "Successful price payload" },
+            "402": { description: "Payment Required via x402 standard" }
+          }
+        }
+      }
+    }
+  });
+});
+
+app.get('/', async (req, res) => {
+  const paymentSignature = req.headers['payment-signature'];
+
+  if (!paymentSignature) {
+    res.status(402)
+       .set({
+         'Content-Type': 'application/json',
+         'Payment-Required': `scheme=exact, amount=${API_AMOUNT_PER_CALL}, asset=USDC, network=${BASE_NETWORK_ID}, payTo=${MY_BASE_WALLET}, maxTimeoutSeconds=30`
+       })
+       .json({
+         error: "Payment Required",
+         message: "This endpoint requires an x402 programmatic stablecoin micro-payment.",
+         accepts: [
+           {
+             scheme: "exact",
+             network: BASE_NETWORK_ID,
+             amount: API_AMOUNT_PER_CALL,
+             asset: "USDC",
+             payTo: MY_BASE_WALLET,
+             maxTimeoutSeconds: 30,
+             eip712: {
+               domain: {
+                 name: "vAPI Live Crypto Price Node",
+                 version: "1.0.0",
+                 chainId: 8453,
+                 verifyingContract: "0x0000000000000000000000000000000000000000"
+               },
+               types: {
+                 Payment: [
+                   { name: "payTo", type: "address" },
+                   { name: "amount", type: "string" },
+                   { name: "asset", type: "string" },
+                   { name: "nonce", type: "uint256" }
+                 ]
+               }
+             }
+           }
+         ],
+         extensions: {
+           bazaar: {
+             version: "1.0.0",
+             category: "financial-data",
+             discoverable: true,
+             method: "GET",
+             queryParamsSchema: {
+               type: "object",
+               properties: {
+                 symbol: { type: "string", default: "BTC" }
+               }
+                 }
+           }
+         }
+       });
+    return;
+  }
+
+  try {
+    const verifyRoute = await axios.post("https://x402.org", {
+      signature: paymentSignature,
+      payTo: MY_BASE_WALLET,
+      amount: API_AMOUNT_PER_CALL
+    });
+    
+    if (verifyRoute.status !== 200) {
+      return res.status(401).json({ error: "Invalid payment signature." });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: "Payment verification engine offline." });
+  }
+
+  const tokenSymbol = req.query.symbol || 'BTC';
+
+  try {
+    const vapiResponse = await axios.get(`https://vapinetwork.ai{tokenSymbol.toUpperCase()}`, {
+      headers: { 'Authorization': `Bearer ${ROUTER_API_KEY}` }
+    });
+
+    res.status(200).json({
+      status: "success",
+      symbol: tokenSymbol.toUpperCase(),
+      price_usd: vapiResponse.data.price,
+      timestamp: Date.now()
+    });
+
+  } catch (error) {
+    res.status(502).json({ error: "Failed to pull price from vAPI router compute infrastructure." });
+  }
+});
+
+app.listen(PORT, () => console.log(`Coinbase SDK Active API Node serving on port ${PORT}`));
