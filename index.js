@@ -4,13 +4,13 @@ import axios from 'axios';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Hardcoded explicit configuration criteria for 0x4529...Bf3B
+// Hardcoded configurations for your 0x4529...Bf3B setup
 const MY_BASE_WALLET = "0x452993071FdE3743767f98f339E90D9A313BBf3B"; 
 const API_AMOUNT_PER_CALL = "0.001"; 
 const BASE_NETWORK_ID = "eip155:8453"; 
 const ROUTER_API_KEY = "sk-nuTbTn3SZQqxgyWVohi8yw";
 
-// 1. OpenAPI Specification Document Endpoint
+// 1. OpenAPI Blueprint Route
 app.get('/openapi.json', (req, res) => {
   res.json({
     openapi: "3.0.0",
@@ -40,8 +40,8 @@ app.get('/openapi.json', (req, res) => {
               required: false,
               schema: { type: "string", default: "BTC" },
               description: "The crypto ticker symbol (e.g., BTC, ETH)"
-                }
-              ],
+            }
+          ],
           responses: {
             "200": { description: "Successful price payload" },
             "402": { description: "Payment Required via x402 standard" }
@@ -52,16 +52,15 @@ app.get('/openapi.json', (req, res) => {
   });
 });
 
-// 2. Main Payment Node Route Handler
+// 2. Main Verified Payment Node Gate (THROWS THE REAL HTTP 402 CODE)
 app.get('/', async (req, res) => {
   const paymentSignature = req.headers['payment-signature'];
 
-  // Throw authentic HTTP 402 challenge block if signature is missing
+  // If a bot tries to visit without paying, throw an authentic HTTP 402 block immediately
   if (!paymentSignature) {
     res.status(402)
        .set({
          'Content-Type': 'application/json',
-         // FIXED: Removed the '$' symbol to pass strict numeric value checks
          'Payment-Required': `scheme=exact, amount=${API_AMOUNT_PER_CALL}, asset=USDC, network=${BASE_NETWORK_ID}, payTo=${MY_BASE_WALLET}, maxTimeoutSeconds=30`
        })
        .json({
@@ -111,7 +110,7 @@ app.get('/', async (req, res) => {
     return;
   }
 
-  // 3. Signature Validation Protocol (FIXED URL ROUTE PATH)
+  // 3. Payment signature verification logic
   try {
     const verifyRoute = await axios.post("https://x402.org", {
       signature: paymentSignature,
@@ -120,13 +119,13 @@ app.get('/', async (req, res) => {
     });
     
     if (verifyRoute.status !== 200) {
-      return res.status(401).json({ error: "Invalid payment signature verification payload." });
+      return res.status(401).json({ error: "Invalid payment signature." });
     }
   } catch (err) {
-    return res.status(500).json({ error: "Payment verification framework timing timeout." });
+    return res.status(500).json({ error: "Payment verification engine offline." });
   }
 
-  // 4. Successful execution via your vAPI credits
+  // 4. Payment checks cleared! Query your vAPI network allocation
   const tokenSymbol = req.query.symbol || 'BTC';
 
   try {
@@ -146,4 +145,4 @@ app.get('/', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Production Active API Node routing on port ${PORT}`));
+app.listen(PORT, () => console.log(`Coinbase SDK Active API Node serving on port ${PORT}`));
