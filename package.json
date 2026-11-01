@@ -8,7 +8,6 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "@coinbase/cdp-core": "^0.4.0",
     "axios": "^1.7.2"
   }
 }
