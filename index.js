@@ -1,5 +1,5 @@
 import express from 'express';
-import { Coinbase } from '@coinbase/cdp-core';
+
 import axios from 'axios';
 
 const app = express();
