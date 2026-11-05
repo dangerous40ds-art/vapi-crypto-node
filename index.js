@@ -19,11 +19,11 @@ app.use((req, res, next) => {
 
 const PORT = process.env.PORT || 10000;
 const MY_BASE_WALLET = process.env.MY_BASE_WALLET || "0x452993071FdE3743767f98f339E90D9A313BBf3B";
-const API_AMOUNT_PER_CALL = process.env.API_AMOUNT_PER_CALL || "0.001";
+const API_AMOUNT_PER_CALL = process.env.API_AMOUNT_PER_CALL || "1000"; // Enforcing standard base integer count standard (1000 = 0.001 USDC)
 const ROUTER_API_KEY = process.env.ROUTER_API_KEY;
 const BASE_NETWORK_ID = "8453";
 
-// Generate fully compliant x402 v2 offer nesting the exact bazaar extensions schema from specs
+// Generate fully compliant x402 v2 offer nesting the exact bazaar and extra domain schemas from foundation specs
 const generate402Offer = (baseUrl, routePath) => ({
     x402Version: 2,
     error: "Payment required",
@@ -39,14 +39,19 @@ const generate402Offer = (baseUrl, routePath) => ({
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913", // Canonical USDC on Base
         payTo: MY_BASE_WALLET,
         maxTimeoutSeconds: 30,
-        domain: {
-            name: "vAPI Telemetry Node Payment Lock",
-            version: "1",
-            chainId: parseInt(BASE_NETWORK_ID),
-            verifyingContract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913"
+        // 🔒 FIXED: Nested inside 'extra' object matching the exact x402-foundation format you pulled
+        extra: {
+            name: "USD Coin",
+            version: "2",
+            assetTransferMethod: "eip3009",
+            domain: {
+                name: "USD Coin",
+                version: "2",
+                chainId: parseInt(BASE_NETWORK_ID),
+                verifyingContract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913"
+            }
         }
     }],
-    // 🔒 Correctly nested extensions mapping matching the x402 foundation repository specifications
     extensions: {
         bazaar: {
             info: {
@@ -68,7 +73,7 @@ const generate402Offer = (baseUrl, routePath) => ({
                 }
             },
             schema: {
-                $schema: "https://json-schema.org/draft/2020-12/schema",
+                $schema: "https://json-schema.org",
                 type: "object",
                 properties: {
                     input: { type: "object" },
@@ -121,7 +126,7 @@ app.get('/', async (req, res) => {
         const verifyRoute = await axios.post("https://x402.org", {
             signature: paymentSignature,
             payTo: MY_BASE_WALLET,
-            amount: API_AMOUNT_PER_CALL
+            amount: "0.001" // Verification API endpoint expects standard token unit decimal formatting string
         });
         if (verifyRoute.status !== 200) return res.status(401).json({ error: "Invalid payment signature." });
     } catch (err) {
