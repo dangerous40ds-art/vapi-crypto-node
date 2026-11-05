@@ -23,11 +23,15 @@ const API_AMOUNT_PER_CALL = process.env.API_AMOUNT_PER_CALL || "0.001";
 const ROUTER_API_KEY = process.env.ROUTER_API_KEY;
 const BASE_NETWORK_ID = "8453";
 
-// Generate fully compliant x402 v2 offer with required Coinbase Bazaar metadata extensions
+// Generate fully compliant x402 v2 offer nesting the exact bazaar extensions schema from specs
 const generate402Offer = (baseUrl, routePath) => ({
     x402Version: 2,
     error: "Payment required",
-    resource: { url: `${baseUrl}${routePath}` },
+    resource: { 
+        url: `${baseUrl}${routePath}`,
+        description: "Onchain crypto token spot pricing telemetry gateway",
+        mimeType: "application/json"
+    },
     accepts: [{
         scheme: "exact",
         network: `eip155:${BASE_NETWORK_ID}`,
@@ -42,11 +46,37 @@ const generate402Offer = (baseUrl, routePath) => ({
             verifyingContract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913"
         }
     }],
-    bazaar: {
-        version: "1.0.0",
-        category: "DeFi / Market Data Telemetry",
-        tags: ["crypto", "telemetry", "prices", "base", "ai-agent-tools"],
-        publisher: "Apex Telemetry Networks"
+    // 🔒 Correctly nested extensions mapping matching the x402 foundation repository specifications
+    extensions: {
+        bazaar: {
+            info: {
+                input: {
+                    type: "http",
+                    method: "GET",
+                    queryParams: {
+                        symbol: "BTC"
+                    }
+                },
+                output: {
+                    type: "json",
+                    example: {
+                        status: "success",
+                        symbol: "BTC",
+                        price_usd: 68420.50,
+                        timestamp: 1714856000
+                    }
+                }
+            },
+            schema: {
+                $schema: "https://json-schema.org/draft/2020-12/schema",
+                type: "object",
+                properties: {
+                    input: { type: "object" },
+                    output: { type: "object" }
+                },
+                required: ["input", "output"]
+            }
+        }
     }
 });
 
@@ -62,7 +92,6 @@ app.get('/openapi.json', (req, res) => {
     const offerPayload = generate402Offer(hostUrl, '/openapi.json');
 
     if (!paymentSignature) {
-        // FIXED: Explicitly stringify the new offerPayload with the bazaar data into the Base64 header!
         const base64Offer = Buffer.from(JSON.stringify(offerPayload)).toString('base64');
         res.setHeader('PAYMENT-REQUIRED', base64Offer);
         return res.status(402).json(offerPayload);
