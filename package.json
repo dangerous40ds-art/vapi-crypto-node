@@ -1,7 +1,7 @@
 {
   "name": "vapi-crypto-price-node",
   "version": "1.0.0",
-  "type": "module",
+  "description": "Onchain x402 telemetry pricing data provider for the vAPI Network.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
