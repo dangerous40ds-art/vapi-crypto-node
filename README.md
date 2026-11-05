@@ -3,8 +3,8 @@
 On-chain crypto token spot pricing telemetry gateway explicitly optimized to serve autonomous agents running natively on the vAPI Network. Powered by compute control plane allowances from staked vAPI.
 
 ## ⚡ Live API Endpoints
-* **Production Route:** https://onrender.com
-* **OpenAPI 3.0 Blueprint:** https://onrender.com/openapi.json
+* **Production Route:** https://vapi-crypto-node-1.onrender.com
+* **OpenAPI 3.0 Blueprint:** https://vapi-crypto-node-1.onrender.com/openapi.json
 
 ## 🔒 vAPI Protocol Conformance
 * **Network:** Base Mainnet (eip155:8453)
