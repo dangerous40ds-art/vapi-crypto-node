@@ -62,6 +62,7 @@ app.get('/openapi.json', (req, res) => {
     const offerPayload = generate402Offer(hostUrl, '/openapi.json');
 
     if (!paymentSignature) {
+        // FIXED: Explicitly stringify the new offerPayload with the bazaar data into the Base64 header!
         const base64Offer = Buffer.from(JSON.stringify(offerPayload)).toString('base64');
         res.setHeader('PAYMENT-REQUIRED', base64Offer);
         return res.status(402).json(offerPayload);
