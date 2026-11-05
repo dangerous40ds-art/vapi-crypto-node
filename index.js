@@ -35,7 +35,6 @@ const generate402Offer = (baseUrl, routePath) => ({
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913", // Canonical USDC on Base
         payTo: MY_BASE_WALLET,
         maxTimeoutSeconds: 30,
-        // 🔒 Cryptographic EIP-712 Verification Domain Parameters required to clear challenge_invalid
         domain: {
             name: "vAPI Telemetry Node Payment Lock",
             version: "1",
@@ -43,7 +42,6 @@ const generate402Offer = (baseUrl, routePath) => ({
             verifyingContract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913"
         }
     }],
-    // 🪙 Mandatory Coinbase Bazaar Extensions to clear bazaar_metadata_missing
     bazaar: {
         version: "1.0.0",
         category: "DeFi / Market Data Telemetry",
@@ -69,7 +67,6 @@ app.get('/openapi.json', (req, res) => {
         return res.status(402).json(offerPayload);
     }
     
-    // Serve formal specification document once challenge unlocks
     res.status(200).json({
         openapi: "3.0.0",
         info: { title: "vAPI Telemetry Node", version: "1.0.0" },
