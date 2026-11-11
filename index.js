@@ -22,9 +22,7 @@ const MY_BASE_WALLET = process.env.MY_BASE_WALLET || "0x452993071FdE3743767f98f3
 const API_AMOUNT_PER_CALL = process.env.API_AMOUNT_PER_CALL || "1000";
 const ROUTER_API_KEY = process.env.ROUTER_API_KEY;
 const BASE_NETWORK_ID = "8453";
-const FACILITATOR_URL = "https://facilitator.payai.network";
-
-
+const FACILITATOR_URL = "https://payai.network";
 
 const buildPaymentRequirements = (baseUrl, routePath) => ({
     scheme: "exact",
@@ -105,11 +103,12 @@ const handlePriceRequest = async (req, res, routePath) => {
         const decodedJson = Buffer.from(paymentSignature, 'base64').toString('utf8');
         paymentPayload = JSON.parse(decodedJson);
     } catch (e) {
+        console.error("Malformed payment-signature header:", e.message);
         return res.status(400).json({ error: "Malformed base64 payment-signature header." });
     }
 
     try {
-        // 1. Verify payment signature with facilitator
+        // 1. Verify payment signature with PayAI Base Mainnet facilitator
         const verifyRes = await axios.post(`${FACILITATOR_URL}/verify`, {
             x402Version: 2,
             paymentPayload,
@@ -117,6 +116,7 @@ const handlePriceRequest = async (req, res, routePath) => {
         });
 
         if (!verifyRes.data || !verifyRes.data.isValid) {
+            console.error("Verify rejected:", JSON.stringify(verifyRes.data));
             return res.status(402).json({
                 error: "Payment verification failed",
                 reason: verifyRes.data?.invalidReason || "Invalid signature"
@@ -131,6 +131,7 @@ const handlePriceRequest = async (req, res, routePath) => {
         });
 
         if (!settleRes.data || !settleRes.data.success) {
+            console.error("Settle rejected:", JSON.stringify(settleRes.data));
             return res.status(402).json({
                 error: "Payment settlement failed",
                 reason: settleRes.data?.errorReason || "Settlement rejected"
@@ -143,12 +144,12 @@ const handlePriceRequest = async (req, res, routePath) => {
 
     } catch (err) {
         const details = err.response?.data || err.message;
+        console.error("Facilitator error:", JSON.stringify(details));
         return res.status(402).json({ error: "Facilitator verification/settlement error", details });
     }
 
     try {
         const vapiResponse = await axios.get(`https://vapinetwork.ai{tokenSymbol.toUpperCase()}`, {
-
             headers: { 'Authorization': `Bearer ${ROUTER_API_KEY}` }
         });
         res.status(200).json({
@@ -158,6 +159,7 @@ const handlePriceRequest = async (req, res, routePath) => {
             timestamp: Date.now()
         });
     } catch (error) {
+        console.error("Router price fetch error:", error.message);
         res.status(502).json({ error: "Failed to pull price from vAPI router compute infrastructure." });
     }
 };
