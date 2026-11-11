@@ -22,6 +22,27 @@ const MY_BASE_WALLET = process.env.MY_BASE_WALLET || "0x452993071FdE3743767f98f3
 const API_AMOUNT_PER_CALL = process.env.API_AMOUNT_PER_CALL || "1000";
 const ROUTER_API_KEY = process.env.ROUTER_API_KEY;
 const BASE_NETWORK_ID = "8453";
+const FACILITATOR_URL = "https://x402.org";
+
+const buildPaymentRequirements = (baseUrl, routePath) => ({
+    scheme: "exact",
+    network: `eip155:${BASE_NETWORK_ID}`,
+    amount: API_AMOUNT_PER_CALL,
+    asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913",
+    payTo: MY_BASE_WALLET,
+    maxTimeoutSeconds: 30,
+    extra: {
+        name: "USD Coin",
+        version: "2",
+        assetTransferMethod: "eip3009",
+        domain: {
+            name: "USD Coin",
+            version: "2",
+            chainId: parseInt(BASE_NETWORK_ID),
+            verifyingContract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913"
+        }
+    }
+});
 
 const generate402Offer = (baseUrl, routePath) => ({
     x402Version: 2,
@@ -31,25 +52,7 @@ const generate402Offer = (baseUrl, routePath) => ({
         description: "Onchain crypto token spot pricing telemetry gateway",
         mimeType: "application/json"
     },
-    accepts: [{
-        scheme: "exact",
-        network: `eip155:${BASE_NETWORK_ID}`,
-        amount: API_AMOUNT_PER_CALL,
-        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913",
-        payTo: MY_BASE_WALLET,
-        maxTimeoutSeconds: 30,
-        extra: {
-            name: "USD Coin",
-            version: "2",
-            assetTransferMethod: "eip3009",
-            domain: {
-                name: "USD Coin",
-                version: "2",
-                chainId: parseInt(BASE_NETWORK_ID),
-                verifyingContract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bda02913"
-            }
-        }
-    }],
+    accepts: [buildPaymentRequirements(baseUrl, routePath)],
     extensions: {
         bazaar: {
             info: {
@@ -81,11 +84,12 @@ const generate402Offer = (baseUrl, routePath) => ({
     }
 });
 
-// Shared handler so both / and /openapi.json return live crypto spot prices once paid
+// Shared handler with full x402 v2 verify + on-chain settle + PAYMENT-RESPONSE header
 const handlePriceRequest = async (req, res, routePath) => {
     const paymentSignature = req.headers['payment-signature'];
     const tokenSymbol = req.query.symbol || 'BTC';
     const hostUrl = `${req.protocol}://${req.get('host')}`;
+    const paymentRequirements = buildPaymentRequirements(hostUrl, routePath);
     const offerPayload = generate402Offer(hostUrl, routePath);
 
     if (!paymentSignature) {
@@ -94,15 +98,50 @@ const handlePriceRequest = async (req, res, routePath) => {
         return res.status(402).json(offerPayload);
     }
 
+    let paymentPayload;
     try {
-        const verifyRoute = await axios.post("https://x402.org", {
-            signature: paymentSignature,
-            payTo: MY_BASE_WALLET,
-            amount: "0.001"
+        const decodedJson = Buffer.from(paymentSignature, 'base64').toString('utf8');
+        paymentPayload = JSON.parse(decodedJson);
+    } catch (e) {
+        return res.status(400).json({ error: "Malformed base64 payment-signature header." });
+    }
+
+    try {
+        // 1. Verify payment signature with facilitator
+        const verifyRes = await axios.post(`${FACILITATOR_URL}/verify`, {
+            x402Version: 2,
+            paymentPayload,
+            paymentRequirements
         });
-        if (verifyRoute.status !== 200) return res.status(401).json({ error: "Invalid payment signature." });
+
+        if (!verifyRes.data || !verifyRes.data.isValid) {
+            return res.status(402).json({
+                error: "Payment verification failed",
+                reason: verifyRes.data?.invalidReason || "Invalid signature"
+            });
+        }
+
+        // 2. Settle payment on-chain on Base Mainnet
+        const settleRes = await axios.post(`${FACILITATOR_URL}/settle`, {
+            x402Version: 2,
+            paymentPayload,
+            paymentRequirements
+        });
+
+        if (!settleRes.data || !settleRes.data.success) {
+            return res.status(402).json({
+                error: "Payment settlement failed",
+                reason: settleRes.data?.errorReason || "Settlement rejected"
+            });
+        }
+
+        // 3. Attach Base64-encoded PAYMENT-RESPONSE header so vAPI confirms settlement
+        const base64Receipt = Buffer.from(JSON.stringify(settleRes.data)).toString('base64');
+        res.setHeader('PAYMENT-RESPONSE', base64Receipt);
+
     } catch (err) {
-        return res.status(500).json({ error: "Payment verification engine offline." });
+        const details = err.response?.data || err.message;
+        return res.status(402).json({ error: "Facilitator verification/settlement error", details });
     }
 
     try {
@@ -125,7 +164,7 @@ app.get('/keepawake', (req, res) => {
     res.status(200).json({ status: "warm", message: "Keep-awake monitor loop successful." });
 });
 
-// Both endpoints now serve live spot prices once paid
+// Both endpoints verify, settle on-chain, and return live spot prices
 app.get('/openapi.json', (req, res) => handlePriceRequest(req, res, '/openapi.json'));
 app.get('/', (req, res) => handlePriceRequest(req, res, '/'));
 
