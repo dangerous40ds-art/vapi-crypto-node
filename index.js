@@ -22,7 +22,9 @@ const MY_BASE_WALLET = process.env.MY_BASE_WALLET || "0x452993071FdE3743767f98f3
 const API_AMOUNT_PER_CALL = process.env.API_AMOUNT_PER_CALL || "1000";
 const ROUTER_API_KEY = process.env.ROUTER_API_KEY;
 const BASE_NETWORK_ID = "8453";
-const FACILITATOR_URL = "https://x402.org";
+const FACILITATOR_URL = "https://facilitator.payai.network";
+
+
 
 const buildPaymentRequirements = (baseUrl, routePath) => ({
     scheme: "exact",
