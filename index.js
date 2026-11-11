@@ -148,6 +148,7 @@ const handlePriceRequest = async (req, res, routePath) => {
 
     try {
         const vapiResponse = await axios.get(`https://vapinetwork.ai{tokenSymbol.toUpperCase()}`, {
+
             headers: { 'Authorization': `Bearer ${ROUTER_API_KEY}` }
         });
         res.status(200).json({
